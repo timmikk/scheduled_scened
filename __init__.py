@@ -3,7 +3,7 @@ from typing import List
 
 #from pyscript.apps.scheduled_scenes.TransitionConf import TransitionConf
 
-from . import TransitionConf
+#from . import TransitionConf
 
 CONF_NAME = "name"
 CONF_LIGHTS = "lights"
@@ -15,6 +15,7 @@ CONF_COLOR_TEMP = "temp"
 CONF_TIME = "time"
 CONF_DISABLE_WHEN_LIGHTS_OFF = "disable_when_lights_off"
 CONF_TRANSITION_TIME_ON_LIGHT_TURN_ON = "transition_time_light_on_trigger"
+CONF_TRANSITION_TIME_ON = "transition_time_light_on"
 
 DEFAULT_TRANSITION_TIME = 30
 DEFAULT_INTERVAL = 30
@@ -136,11 +137,11 @@ class Program:
 
     def initServices(self):
         @service(f"scheduled_scenes_{self.name()}.turn_on")
-        def turn_on(transition = 1):
-            self.turnOn(transition_time = transition)
+        def turn_on():
+            self.turnOn()
         @service(f"scheduled_scenes_{self.name()}.turn_off")
-        def turn_off(transition = 1):
-            self.turnOff(transition_time = transition)
+        def turn_off():
+            self.turnOff()
         @service(f"scheduled_scenes_{self.name()}.enable")
         def enable():
             self.setEnabled(enabled = True)
@@ -171,14 +172,16 @@ class Program:
         if self.allowTransition and self.getCurrentTransition() is not None:
             self.getCurrentTransition().transition(transitionTimeOverride = transitionTimeOverride, allowTurnLightsOn = allowTurnLightsOn)
 
-    def turnOn(self, transition_time = 1):
+    def turnOn(self, transition_time = 0.3):
+        self.setEnabled(enabled=True)
         self.transition(transitionTimeOverride = transition_time, allowTurnLightsOn = True)
 
-    def turnOff(self, transition_time = 1):
+    def turnOff(self, transition_time = 0.3):
+        self.setEnabled(enabled=False)
         for l in self.lights():
             light.turn_off(entity_id=l, transition = transition_time)
 
-    def setEnabled(self, enabled, duration=240):
+    def setEnabled(self, enabled, duration=0):
         if not enabled:
             if duration == 0:
                 self.enableTime = None
@@ -218,9 +221,13 @@ class Program:
         if CONF_TRANSITION_TIME_ON_LIGHT_TURN_ON in self.conf:
             return self.conf[CONF_TRANSITION_TIME_ON_LIGHT_TURN_ON]
         else:
-            return 1
+            return 0.2
 
-    
+    def transitionTime_lightOn(self):
+        if CONF_TRANSITION_TIME_ON in self.conf:
+            return self.conf[CONF_TRANSITION_TIME_ON]
+        else:
+            return 0.5
     
     def transitionInterval(self):
         if CONF_TRANSITION_INTERVAL in self.conf:
@@ -413,6 +420,9 @@ class TransitionConf:
         else:
             if colorTemp < self.colorTempEnd():
                 colorTemp = self.colorTempEnd()
+
+        #log.info(f"Transition: lights = {self.lights()}, seconds = {transitionSeconds}, brightness = {brightness}, colorTemp = {colorTemp}")
+        #light.turn_on(entity_id=self.lights(), brightness_pct = brightness, kelvin = colorTemp, transition = transitionSeconds)
 
         for l in self.lights():
             log.info(f"Transitioning Light: {l}, is on: {self.isLightOn(l)}")
