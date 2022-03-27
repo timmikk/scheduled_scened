@@ -428,6 +428,33 @@ class TransitionConf:
     def allowTransition(self):
         return self.parent.allowTransition()
 
+    def getBrightness(self, light):
+        secondsFromTranstionStart = self.secondsFromTransitionStart()
+        brightness = round(self.brightnessStart() + self.brightnessPerSec() * secondsFromTranstionStart)
+
+        if self.brightnessPerSec() > 0:
+            if brightness > self.brightnessEnd():
+                brightness = self.brightnessEnd()
+        else:
+            if brightness < self.brightnessEnd():
+                brightness = self.brightnessEnd()
+        log.debug(f"brightness ({light}): {brightness} = round({self.brightnessStart()} + {self.brightnessPerSec()} * {secondsFromTranstionStart})")
+        return brightness
+        
+
+    def getColorTemp(self, light):
+        secondsFromTranstionStart = self.secondsFromTransitionStart()
+        colorTemp = round(self.colorTempStart() + self.colorTempPerSec() * secondsFromTranstionStart)
+        if self.colorTempPerSec() > 0:
+            if colorTemp > self.colorTempEnd():
+                colorTemp = self.colorTempEnd()
+        else:
+            if colorTemp < self.colorTempEnd():
+                colorTemp = self.colorTempEnd()
+
+        log.debug(f"colorTemp ({light}): {colorTemp} = round({self.colorTempStart()} + {self.colorTempPerSec()} * {secondsFromTranstionStart})")
+        return colorTemp
+
     def transition(self, transitionTimeOverride = None, allowTurnLightsOn = None):
         if not self.allowTransition():
             log.debug(f"Transition [{self.index}]: {self.startTime()} - {self.endTime()} was ignored as transitions are not allowed: self.allowTransition()={self.allowTransition()}")
@@ -441,40 +468,20 @@ class TransitionConf:
         now = datetime.now()
         self.lastTransitionTime = now
 
-        secondsFromTranstionStart = self.secondsFromTransitionStart()
         transitionSeconds = transitionTimeOverride if transitionTimeOverride != None else min((now - self.startDateTime()).total_seconds(), self.transitionTime())
-        brightness = round(self.brightnessStart() + self.brightnessPerSec() * secondsFromTranstionStart)
-        colorTemp = round(self.colorTempStart() + self.colorTempPerSec() * secondsFromTranstionStart)
-
-        log.debug(f"Transition calculation: transitionSeconds={transitionSeconds}, ")
-        log.debug(f"brightness: {brightness} = round({self.brightnessStart()} + {self.brightnessPerSec()} * {secondsFromTranstionStart})")
-        log.debug(f"colorTemp {colorTemp} = round({self.colorTempStart()} + {self.colorTempPerSec()} * {secondsFromTranstionStart})")
-
-        if self.brightnessPerSec() > 0:
-            if brightness > self.brightnessEnd():
-                brightness = self.brightnessEnd()
-        else:
-            if brightness < self.brightnessEnd():
-                brightness = self.brightnessEnd()
         
-        if self.colorTempPerSec() > 0:
-            if colorTemp > self.colorTempEnd():
-                colorTemp = self.colorTempEnd()
-        else:
-            if colorTemp < self.colorTempEnd():
-                colorTemp = self.colorTempEnd()
+        log.debug(f"Transition calculation: transitionSeconds={transitionSeconds}, ")
+        
+        for l in self.lights():
+            brightness = self.getBrightness(l)
+            colorTemp = self.getColorTemp(l)
 
-        if allowTurnLightsOn:
-            log.info(f"Transition [allowTurnLightsOn: True]: lights = {self.lights()}, seconds = {transitionSeconds}, brightness = {brightness}, colorTemp = {colorTemp}")
-            light.turn_on(entity_id=self.lights(), brightness_pct = brightness, kelvin = colorTemp, transition = transitionSeconds)
-        else:
-            for l in self.lights():
-                #log.info(f"Transitioning Light: {l}, is on: {self.isLightOn(l)}")
-                if(allowTurnLightsOn or self.isLightOn(l)):
-                    log.info(f"Transition: light = {l}, seconds = {transitionSeconds}, brightness = {brightness}, colorTemp = {colorTemp}, [allowTurnLightsOn: {allowTurnLightsOn} or isLightOn: {self.isLightOn(l)}]")
-                    light.turn_on(entity_id=l, brightness_pct = brightness, kelvin = colorTemp, transition = transitionSeconds)
-                else:
-                    log.debug(f"Not transitioning light {l} as allowTurnLightsOn: {allowTurnLightsOn} or isLightOn: {self.isLightOn(l)}")
+            #log.info(f"Transitioning Light: {l}, is on: {self.isLightOn(l)}")
+            if(allowTurnLightsOn or self.isLightOn(l)):
+                log.info(f"Transition: light = {l}, seconds = {transitionSeconds}, brightness = {brightness}, colorTemp = {colorTemp}, [allowTurnLightsOn: {allowTurnLightsOn} or isLightOn: {self.isLightOn(l)}]")
+                light.turn_on(entity_id=l, brightness_pct = brightness, kelvin = colorTemp, transition = transitionSeconds)
+            else:
+                log.debug(f"Not transitioning light {l} as allowTurnLightsOn: {allowTurnLightsOn} or isLightOn: {self.isLightOn(l)}")
 
           
 
