@@ -369,29 +369,44 @@ class TransitionConf:
         else:
             return None
 
-    def brightnessStart(self):
+    def getLightSpecificProp(self, light, prop):
+        if CONF_LIGHTS in self.getTransitionConf():
+            lights = self.getTransitionConf()[CONF_LIGHTS]
+            if light in lights and prop in lights[light]:
+                return lights[light][prop]
+        return None
+
+    def brightnessStart(self, light):
+        brightness = self.getLightSpecificProp(light, CONF_BRIGHTNESS)
+        if brightness is not None:
+            return brightness
+
         if CONF_BRIGHTNESS in self.getTransitionConf():
             return self.getTransitionConf()[CONF_BRIGHTNESS]
         else:
             log.warning(f"brightness not defined in transition") #TODO Täydennä virhe
             return None
     
-    def brightnessEnd(self):
+    def brightnessEnd(self, light):
         if next != None:
-            return self.next().brightnessStart()
+            return self.next().brightnessStart(light)
         else:
             return None
     
-    def colorTempStart(self):
+    def colorTempStart(self, light):
+        temp = self.getLightSpecificProp(light, CONF_COLOR_TEMP)
+        if temp is not None:
+            return temp
+
         if CONF_COLOR_TEMP in self.getTransitionConf():
             return self.getTransitionConf()[CONF_COLOR_TEMP]
         else:
             log.warning(f"temp not defined in transition") #TODO Täydennä virhe
             return None
     
-    def colorTempEnd(self):
+    def colorTempEnd(self, light):
         if next != None:
-            return self.next().colorTempStart()
+            return self.next().colorTempStart(light)
         else:
             return None
 
@@ -411,11 +426,11 @@ class TransitionConf:
         #log.debug(f"secondsFromTransitionStart: {seconds} = ({datetime.now()} - {self.startDateTime()}).total_seconds()")
         return seconds
 
-    def brightnessPerSec(self) -> float:
-        return (self.brightnessEnd() - self.brightnessStart()) / self.totalTransitionSeconds()
+    def brightnessPerSec(self, light) -> float:
+        return (self.brightnessEnd(light) - self.brightnessStart(light)) / self.totalTransitionSeconds()
 
-    def colorTempPerSec(self) -> float:
-        colorTempPerSec = (self.colorTempEnd() - self.colorTempStart()) / self.totalTransitionSeconds()
+    def colorTempPerSec(self, light) -> float:
+        colorTempPerSec = (self.colorTempEnd(light) - self.colorTempStart(light)) / self.totalTransitionSeconds()
         #log.debug(f"colorTempPerSec: {colorTempPerSec} = ({self.colorTempEnd()} - {self.colorTempStart()}) / {self.totalTransitionSeconds()}")
         return colorTempPerSec
 
@@ -430,29 +445,37 @@ class TransitionConf:
 
     def getBrightness(self, light):
         secondsFromTranstionStart = self.secondsFromTransitionStart()
-        brightness = round(self.brightnessStart() + self.brightnessPerSec() * secondsFromTranstionStart)
+        brightnessPerSec = self.brightnessPerSec(light)
+        brightnessStart = self.brightnessStart(light)
+        brightnessEnd = self.brightnessEnd(light)
 
-        if self.brightnessPerSec() > 0:
-            if brightness > self.brightnessEnd():
-                brightness = self.brightnessEnd()
+        brightness = round(brightnessStart + brightnessPerSec * secondsFromTranstionStart)
+
+        if brightnessPerSec > 0:
+            if brightness > brightnessEnd:
+                brightness = brightnessEnd
         else:
-            if brightness < self.brightnessEnd():
-                brightness = self.brightnessEnd()
-        log.debug(f"brightness ({light}): {brightness} = round({self.brightnessStart()} + {self.brightnessPerSec()} * {secondsFromTranstionStart})")
+            if brightness < brightnessEnd:
+                brightness = brightnessEnd
+        log.debug(f"brightness ({light}): {brightness} = round({brightnessStart} + {brightnessPerSec} * {secondsFromTranstionStart})")
         return brightness
         
 
     def getColorTemp(self, light):
         secondsFromTranstionStart = self.secondsFromTransitionStart()
-        colorTemp = round(self.colorTempStart() + self.colorTempPerSec() * secondsFromTranstionStart)
-        if self.colorTempPerSec() > 0:
-            if colorTemp > self.colorTempEnd():
-                colorTemp = self.colorTempEnd()
-        else:
-            if colorTemp < self.colorTempEnd():
-                colorTemp = self.colorTempEnd()
+        colorTempPerSec = self.colorTempPerSec(light)
+        colorTempStart = self.colorTempStart(light)
+        colorTempEnd = self.colorTempEnd(light)
 
-        log.debug(f"colorTemp ({light}): {colorTemp} = round({self.colorTempStart()} + {self.colorTempPerSec()} * {secondsFromTranstionStart})")
+        colorTemp = round(colorTempStart + colorTempPerSec * secondsFromTranstionStart)
+        if colorTempPerSec > 0:
+            if colorTemp > colorTempEnd:
+                colorTemp = colorTempEnd
+        else:
+            if colorTemp < colorTempEnd:
+                colorTemp = colorTempEnd
+
+        log.debug(f"colorTemp ({light}): {colorTemp} = round({colorTempStart} + {colorTempPerSec} * {secondsFromTranstionStart})")
         return colorTemp
 
     def transition(self, transitionTimeOverride = None, allowTurnLightsOn = None):
