@@ -108,7 +108,7 @@ class Program:
     def initTriggers(self):
         for l in self.lights():
             self.initLightTrigger(l)
-        if self.allowTransition:
+        if self.allowTransition():
             self.initPeriodicTrigger()
         else:
             self.periodicTrigger = None
@@ -143,7 +143,7 @@ class Program:
                 else:
                     log.debug(f"Light on -> Ignoring [confEnableWhenLightTurnOn: {self.confEnableWhenLightTurnOn()}, confAllowTurnOnIfAnyOn: {self.confAllowTurnOnIfAnyOn()}]")
             elif value == 'off' or value == 'unavailable':
-                if not self.isAnylightOn():
+                if self.confDisableWhenLightsOff() and not self.isAnylightOn():
                     log.debug(f"All lights off. Disabling")
                     self.setDisabled()
                 else:
@@ -153,17 +153,19 @@ class Program:
         self.lightTriggers.append(lightTrigger)
 
     def initServices(self):
-        @service(f"scheduled_scenes_{self.name()}.turn_on")
+        @service(f"pyscript.scheduled_scenes_{self.name()}_turn_on")
         def turn_on():
             self.turnOn()
-        @service(f"scheduled_scenes_{self.name()}.turn_off")
+        @service(f"pyscript.scheduled_scenes_{self.name()}_turn_off")
         def turn_off():
             self.turnOff()
-        @service(f"scheduled_scenes_{self.name()}.enable")
+        @service(f"pyscript.scheduled_scenes_{self.name()}_enable")
         def enable():
             self.setEnabled()
-        @service(f"scheduled_scenes_{self.name()}.disable")
-        def disable(duration):
+        @service(f"pyscript.scheduled_scenes_{self.name()}_disable")
+        def disable(duration=0):
+            if duration is None:
+                duration = 0
             self.setDisabled(duration=duration)
 
         self.services.append(turn_on)
@@ -174,7 +176,7 @@ class Program:
 
     def isAnylightOn(self):
         for l in self.lights():
-            if state.get(l) is 'on':
+            if state.get(l) == 'on':
                 return True
         return False
 
@@ -190,7 +192,7 @@ class Program:
 
     def transition(self, transitionTimeOverride = None, allowTurnLightsOn = None):
         log.debug(f"Program transition triggered with transitionTimeOverride={transitionTimeOverride}")
-        if self.allowTransition and self.getCurrentTransition() is not None:
+        if self.allowTransition() and self.getCurrentTransition() is not None:
             self.getCurrentTransition().transition(transitionTimeOverride = transitionTimeOverride, allowTurnLightsOn = allowTurnLightsOn)
 
     def turnOn(self, transition_time = 0.3):
@@ -282,6 +284,12 @@ class Program:
             return self.conf[CONF_ENABLE_WHEN_LIGHT_TURN_ON]
         else:
             return False
+
+    def confDisableWhenLightsOff(self):
+        if CONF_DISABLE_WHEN_LIGHTS_OFF in self.conf:
+            return self.conf[CONF_DISABLE_WHEN_LIGHTS_OFF]
+        else:
+            return True
 
 
 
@@ -502,7 +510,7 @@ class TransitionConf:
             #log.info(f"Transitioning Light: {l}, is on: {self.isLightOn(l)}")
             if(allowTurnLightsOn or self.isLightOn(l)):
                 log.info(f"Transition: light = {l}, seconds = {transitionSeconds}, brightness = {brightness}, colorTemp = {colorTemp}, [allowTurnLightsOn: {allowTurnLightsOn} or isLightOn: {self.isLightOn(l)}]")
-                light.turn_on(entity_id=l, brightness_pct = brightness, kelvin = colorTemp, transition = transitionSeconds)
+                light.turn_on(entity_id=l, brightness_pct = brightness, color_temp_kelvin = colorTemp, transition = transitionSeconds)
             else:
                 log.debug(f"Not transitioning light {l} as allowTurnLightsOn: {allowTurnLightsOn} or isLightOn: {self.isLightOn(l)}")
 
