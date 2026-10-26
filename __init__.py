@@ -108,11 +108,7 @@ class Program:
     def initTriggers(self):
         for l in self.lights():
             self.initLightTrigger(l)
-        if self.allowTransition():
-            self.initPeriodicTrigger()
-        else:
-            self.periodicTrigger = None
-            log.debug(f"Periodig trigger disabled as transitions not allowed")
+        self.initPeriodicTrigger()
 
 
     def initPeriodicTrigger(self):
@@ -154,16 +150,16 @@ class Program:
 
     def initServices(self):
         @service(f"pyscript.scheduled_scenes_{self.name()}_turn_on")
-        def turn_on():
-            self.turnOn()
+        def turn_on(transition=None, **kwargs):
+            self.turnOn(transition_time=transition if transition is not None else 0.3)
         @service(f"pyscript.scheduled_scenes_{self.name()}_turn_off")
-        def turn_off():
-            self.turnOff()
+        def turn_off(transition=None, **kwargs):
+            self.turnOff(transition_time=transition if transition is not None else 0.3)
         @service(f"pyscript.scheduled_scenes_{self.name()}_enable")
-        def enable():
+        def enable(**kwargs):
             self.setEnabled()
         @service(f"pyscript.scheduled_scenes_{self.name()}_disable")
-        def disable(duration=0):
+        def disable(duration=0, **kwargs):
             if duration is None:
                 duration = 0
             self.setDisabled(duration=duration)
@@ -176,8 +172,11 @@ class Program:
 
     def isAnylightOn(self):
         for l in self.lights():
-            if state.get(l) == 'on':
-                return True
+            try:
+                if state.get(l) == 'on':
+                    return True
+            except (NameError, Exception):
+                pass
         return False
 
     def allowTurnLightsOn(self):
@@ -186,7 +185,7 @@ class Program:
     
     def allowTransition(self):
         allow = self.enabled
-        log.debug(f"Allow transition = {allow}: enabled={self.enabled} AND (allowTurnLightsOn={self.allowTurnLightsOn()} OR self.isAnylightOn()={self.isAnylightOn()})")
+        log.debug(f"Allow transition = {allow} [enabled: {self.enabled}]")
         
         return allow
 
@@ -363,7 +362,7 @@ class TransitionConf:
             return None
 
     def endTime(self):
-        if next != None:
+        if self.next() is not None:
             return self.next().startTime()
         else:
             return None
@@ -396,7 +395,7 @@ class TransitionConf:
             return None
     
     def brightnessEnd(self, light):
-        if next != None:
+        if self.next() is not None:
             return self.next().brightnessStart(light)
         else:
             return None
@@ -413,7 +412,7 @@ class TransitionConf:
             return None
     
     def colorTempEnd(self, light):
-        if next != None:
+        if self.next() is not None:
             return self.next().colorTempStart(light)
         else:
             return None
@@ -443,7 +442,10 @@ class TransitionConf:
         return colorTempPerSec
 
     def isLightOn(self, light):
-        return state.get(light) == 'on'
+        try:
+            return state.get(light) == 'on'
+        except (NameError, Exception):
+            return False
 
     def allowTurnLightsOn(self):
         return self.parent.allowTurnLightsOn()
